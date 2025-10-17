@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MLCC — Animated Story Flow (Auto-play)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-1:#fbfdff;
+    --bg-2:#f2fbff;
+    --accent-1:#0b66b2;
+    --accent-2:#26b7ff;
+    --muted:#6f8b93;
+    --glass: rgba(255,255,255,0.88);
+    --card-radius:18px;
+    --max-w:1100px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg-1),var(--bg-2));font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto;color:#042c34; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:var(--max-w);margin:26px auto;padding:20px;position:relative}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:64px;height:64px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--accent-2),var(--accent-1));color:#fff;font-weight:800;font-size:18px;box-shadow:0 18px 60px rgba(38,183,255,0.12)}
+  .titleBox{display:flex;flex-direction:column}
+  .zTitle{font-size:20px;font-weight:800;line-height:1;color:#072b35}
+  .sub{font-size:13px;color:var(--muted);margin-top:4px}
+
+  /* Story viewport */
+  .viewport{height:72vh;max-height:820px;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,253,255,0.9));border:1px solid rgba(11,102,178,0.06);box-shadow:0 30px 120px rgba(11,102,178,0.06);position:relative}
+  .scroller{height:100%;overflow:hidden;position:relative}
+  .track{position:absolute;inset:0;padding:46px 46px;display:flex;flex-direction:column;gap:42px;align-items:stretch}
+
+  /* Section card (each article) */
+  .section{
+    display:grid;grid-template-columns: 48% 1fr;gap:28px;align-items:center;
+    background:linear-gradient(180deg, rgba(255,255,255,0.9), rgba(250,255,255,0.95));
+    padding:28px;border-radius:14px;border:1px solid rgba(11,102,178,0.04);
+    box-shadow: 0 18px 50px rgba(11,102,178,0.04); min-height:260px; transform: translateY(20px); opacity:0;
+    transition: transform 720ms cubic-bezier(.2,.9,.25,1), opacity 560ms ease;
+    position:relative; overflow:hidden;
+  }
+  /* when active in view */
+  .section.inview{transform:none;opacity:1}
+
+  .media{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(11,102,178,0.06);box-shadow:0 14px 40px rgba(11,102,178,0.04)}
+  .media img{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.03);transition: transform 600ms ease}
+  .section.inview .media img{transform:scale(1)}
+
+  .content h3{margin:0;font-size:20px;line-height:1.06;color:#072b35;font-weight:800}
+  .kicker{display:inline-block;padding:8px 12px;border-radius:999px;background:linear-gradient(90deg,var(--accent-2),var(--accent-1));color:white;font-weight:800;margin-bottom:10px;font-size:12px}
+  .excerpt{color:var(--muted);margin-top:6px;font-size:14px;line-height:1.6;max-height:160px;overflow:auto;padding-right:6px}
+  .metaRow{display:flex;gap:12px;margin-top:12px;align-items:center}
+  .metaBtn{padding:8px 12px;border-radius:10px;border:none;background:linear-gradient(180deg,rgba(11,102,178,0.08),rgba(25,163,255,0.06));color:var(--accent-1);font-weight:700;cursor:pointer}
+
+  /* Beam-like divider (glowing) between sections */
+  .beamDivider{height:6px;border-radius:999px;background:linear-gradient(90deg, rgba(38,183,255,0.1), rgba(11,102,178,0.18));overflow:visible;position:relative;box-shadow:0 8px 40px rgba(38,183,255,0.04)}
+  .beamGlow{position:absolute;left:-10%;top:-8px;width:20%;height:22px;border-radius:50%;filter:blur(16px);background:linear-gradient(90deg,var(--accent-2),var(--accent-1));opacity:0.18;transform-origin:center;animation: beamMove 6s linear infinite}
+  @keyframes beamMove{0%{transform:translateX(-4%)}50%{transform:translateX(60%)}100%{transform:translateX(120%)}}
+
+  /* indicators & controls */
+  .controls{display:flex;gap:10px;align-items:center;position:absolute;right:18px;top:18px;z-index:40}
+  .controlBtn{background:transparent;border:1px solid rgba(11,102,178,0.08);padding:8px 10px;border-radius:10px;color:var(--accent-1);cursor:pointer;font-weight:700}
+  .pauseNote{font-size:12px;color:var(--muted);margin-left:10px}
+
+  /* subtle parallax shapes */
+  .floatShape{position:absolute;border-radius:14px;filter:blur(26px);opacity:0.08;pointer-events:none}
+  .s1{width:240px;height:120px;right:-20px;top:-40px;background:linear-gradient(90deg,var(--accent-2),var(--accent-1))}
+  .s2{width:180px;height:90px;left:-30px;bottom:-10px;background:linear-gradient(90deg,var(--accent-1),var(--accent-2));opacity:0.06}
+
+  /* footer */
+  .sceneFooter{display:flex;align-items:center;justify-content:space-between;margin-top:18px;color:var(--muted);font-size:13px}
+
+  /* responsive */
+  @media (max-width:900px){
+    .section{grid-template-columns:1fr; padding:18px}
+    .media{height:200px}
+    .viewport{height:78vh}
+  }
+
+  /* accessibility focus */
+  button:focus, .section:focus { outline: 3px solid rgba(38,183,255,0.12); outline-offset:4px; border-radius:10px }
+</style>
+</head>
+<body>
+  <div class="wrap" role="main" aria-label="MLCC Animated Story Flow">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">ML</div>
+        <div class="titleBox">
+          <div class="zTitle">MLCC — Animated Story Flow</div>
+          <div class="sub">Auto-play cinematic tour of the IT newsletter — press pause to stop.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="controls" role="toolbar" aria-label="Playback controls">
+          <button class="controlBtn" id="playPause" aria-pressed="false">Pause</button>
+          <button class="controlBtn" id="prev" title="Previous">Prev</button>
+          <button class="controlBtn" id="next" title="Next">Next</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="viewport" id="viewport" role="region" aria-label="Story viewport">
+      <div class="scroller" id="scroller">
+        <div class="track" id="track">
+          <!-- sections injected here -->
+        </div>
+      </div>
+
+      <!-- glowy shapes -->
+      <div class="floatShape s1" aria-hidden="true"></div>
+      <div class="floatShape s2" aria-hidden="true"></div>
+    </div>
+
+    <div class="sceneFooter">
+      <div>MLCC IT Unit • VitalBeam Edition (content from newsletter)</div>
+      <div id="readerNote" class="pauseNote">Auto-play is ON — hover to pause</div>
+    </div>
+  </div>
+
+  <!-- newsletter config (user-provided data) -->
+  <script id="medserve-config" type="application/json">
+[
+  {
+    "A0": "📢 Introducing e-Memo — A Smarter Way to Manage Memos and Invoices - Nov 15",
+    "A1": "We’re excited to introduce e-Memo, a new and efficient way to send and manage memos and invoices within your organization.\n\nThis innovative system replaces the old manual process with a seamless, automated link that makes communication between departments faster, smarter, and more reliable.\n\nWith e-Memo, every purchase request and invoice is automatically logged and tracked from creation to approval. Once finance processes an invoice, status updates and smart notifications are instantly shared, keeping everyone informed in real time. No more searching through endless emails — all approvals, totals, and document histories are organized and easily accessible.\n\nExperience the future of business communication with e-Memo — where memos, invoices, and approvals move as fast as your ideas. Stay connected, stay informed, and let automation handle the rest!",
+    "A2":"https://nlcc-apps.github.io/img/RefundApp.png"
+  },
+  {
+    "A0": "🖐 Introducing MLCC’s Contactless Feedback System",
+    "A1": "MLCC continues to lead the way in Cancer Care and Innovation, not only in medical excellence but also in patient and visitor experience.\n\nOur IT Unit has introduced a gesture-based, contactless feedback solution designed to make sharing your experience easier, faster, and completely hygienic.\n\nWith this new system, you don’t need to touch any screen or device — simply wave your hand to choose between Excellent, Very Good, Good, Fair, or Poor. Your feedback is recorded instantly and securely, with full respect for your privacy.\n\nWe hope you find this solution stress-free, intuitive, and effortless — another step in demonstrating MLCC’s commitment to excellence, innovation, and patient-centered care. Thank you for helping us make every experience better.",
+    "A2":"https://nlcc-apps.github.io/img/feedback.png"
+  },
+  {
+    "A0": "⚙ Strengthening Compliance with Carepath on Aria",
+    "A1": "The Carepath system has been a key part of ensuring smooth clinical and treatment workflows on Aria.\n\nHowever, we’ve observed that some activities continue outside of Carepath, as the system currently allows users to proceed without enforcing its use. This may seem convenient, but it has important implications for care quality and tracking.\n\nWhen Carepath is bypassed, the system can’t accurately track pending contouring, ready plans, or task completions. Users also miss out on automatic notifications and reminders, leaving some activities open or unmonitored — which can affect both efficiency and patient safety.\n\nOur IT and clinical teams are actively working to close these gaps. Soon, when a major activity is opened outside Carepath, the system will prompt a friendly reminder — “Hey there, this isn’t possible. Please go through Carepath to proceed.” This will ensure all activities are properly logged, tasks are completed in sequence, and compliance remains consistent across the board.",
+    "A2":"https://nlcc-apps.github.io/img/license.jpeg"
+  },
+  {
+    "A0": "📁 Get Onboard with Zoho Drives",
+    "A1": "We’re using this opportunity to get everyone onboarded to Zoho Drives, our secure and collaborative cloud workspace.\n\nZoho Drives is already being used across departments — including CT Activity Management, Procurement, and Finance — to help streamline document sharing, validation, and approvals.\n\nEach team member has access to Zoho Drive through their official email account. It provides a simple way to upload, store, and share files in real time, keeping our workflows transparent and well-organized.\n\nShared drives also ensure that required documents can be validated and accessed jointly when needed.\n\nIf you haven’t already, please log in to your Zoho account and explore the Drive features. Let’s make collaboration seamless and efficient — the Zoho way!",
+    "A2":"https://nlcc-apps.github.io/img/zoho-drive.png"
+  },
+  {
+    "A0": "💻 Introducing Zoho Meeting – Smarter, Simpler Online Collaboration",
+    "A1": "As part of our ongoing digital transformation efforts, the IT Unit is pleased to introduce Zoho Meeting, a secure and user-friendly platform for hosting virtual meetings, webinars, and team collaborations.\n\nDesigned for efficiency and ease of use, Zoho Meeting helps us stay connected whether we’re in the office, at home, or on the move.\n\nWith Zoho Meeting, you can schedule, host, and join meetings directly through your Zoho account, complete with screen sharing, chat, and recording options.\n\nIt integrates smoothly with other Zoho apps, making it easier to coordinate projects, share updates, and conduct department reviews — all in one unified environment.\n\nWe encourage all teams to begin using Zoho Meeting for internal discussions, project reviews, and cross-department collaborations. It’s secure, reliable, and fully aligned with our IT vision of smart, contactless, and connected operations.",
+    "A2":"https://nlcc-apps.github.io/img/zoho-meeting.png"
+  },
+  {
+    "A0": "📊 Introducing Zoho Spreadsheet – Smarter Data, Better Decisions",
+    "A1": "As part of our growing Zoho ecosystem, the IT Unit is excited to introduce Zoho Spreadsheet (Zoho Sheet) — a powerful, cloud-based platform for creating, sharing, and analyzing data collaboratively.\n\nIt brings familiar spreadsheet functions into a modern, connected workspace designed for teamwork and efficiency.\n\nWith Zoho Spreadsheet, multiple users can work on the same file simultaneously, with real-time updates and automatic version control.\n\nIt also supports data analysis, charts, pivot tables, and custom formulas, helping teams make faster, data-driven decisions.\n\nIntegration with other Zoho tools means your numbers can easily link to reports, dashboards, and project trackers.\n\nWe encourage all departments to explore Zoho Spreadsheet for daily reporting, performance tracking, and project management. It’s secure, smart, and helps us move closer to a fully digital, collaborative workplace.",
+    "A2":"https://nlcc-apps.github.io/img/zoho-spreadsheet-metrics.png"
+  },
+  {
+    "A0": "🏥 Care Stage for Patient List – Smarter Tracking, Faster Updates",
+    "A1": "We’re excited to announce a new Care Stage feature now available on Tracker!\n\nThis enhancement makes it easier than ever to bulk report the stage of care for multiple patients at once — saving valuable time and reducing manual tracking errors.\n\nWith this feature, our amazing Front Desk Team can simply import a patient list, and in seconds — Gbam! — the system automatically displays each patient’s current stage, whether Contouring, Planning, or Treatment.\n\nNo more checking one by one; everything is visible at a glance.\n\nThis update helps improve workflow visibility and ensures that every patient’s progress is tracked accurately across teams. It’s another smart step toward efficiency, transparency, and coordinated care within our clinical workflow.",
+    "A2":"https://nlcc-apps.github.io/img/PaymentValidation.png"
+  },
+  {
+    "A0": "☁ Starlink + Sage: Finance Has Gone Cloud!",
+    "A1": "Our Finance Team has officially stepped beyond the terrestrial and into the cloud era!\n\nWith the successful deployment of Sage Cloud and the integration of Starlink — Elon Musk’s high-speed satellite internet, our finance operations are now running seamlessly and securely online.\n\nThis move ensures that our financial data is safer, more accessible, and less dependent on local infrastructure.\n\nNo more downtime or connectivity barriers — the Sage system now performs optimally from anywhere, backed by the reliability of Starlink’s satellite-powered network.\n\nBy combining Sage Cloud’s smart financial management tools with Starlink’s cutting-edge connectivity, we’ve unlocked a new level of efficiency, flexibility, and resilience in financial operations.\n\nThe future of finance at MLCC is truly above the clouds!",
+    "A2":"https://nlcc-apps.github.io/img/sage-cloud.png"
+  },
+  {
+    "A0": "💬 WEB BOT: Enhancing Patient Engagement with Tawk.to Chat App - Upgrade to Website",
+    "A1": "Meet our new virtual superhero — the Tawk.to Web Bot, always awake (unlike most of us after lunch).\n\nThis smart chatbot ensures patients get instant assistance 24/7, handling inquiries, follow-ups, and quick information requests with robotic grace and human charm.\n\nNo queues, no “please hold” moments — just fast, friendly digital support that keeps engagement alive even after office hours.\n\nPatients can reach out anytime, anywhere, and get guided responses faster than you can say “operator, please.”\n\nWith Tawk.to integration, MLCC now connects better, responds quicker, and delivers that extra touch of tech-driven empathy. Because patient care doesn’t clock out.",
+    "A2":"https://nlcc-apps.github.io/img/Tawk.png"
+  },
+  {
+    "A0": "🧭 Unified IT Service Management: Optimizing Operational Efficiency",
+    "A1": "The IT Unit just hit the “level-up” button with our Unified IT Service Management (ITSM) platform — where all your incidents, changes, support requests, and bookings live together in peaceful harmony.\n\nGone are the days of chasing tickets across systems. From equipment faults to meeting room bookings, everything is now trackable, measurable, and fixable — all in real time.\n\nIt’s like having a digital butler who never forgets your service requests.\n\nThis upgrade means smoother workflows, faster response times, and happier users — because efficiency should never be a mystery, just a well-coded habit.",
+    "A2":"https://nlcc-apps.github.io/img/ITSM.png"
+  },
+  {
+    "A0": "🚪 Special/Weekend Access to MLCC: Secure Entry Protocols Unveiled",
+    "A1": "Weekends at MLCC just got smarter (and safer).\n\nOur new Special Access Protocol ensures only authorized personnel can visit MLCC after weekend.\n\nAccess requests are now handled through a digital approval process that confirms identity, purpose, and timing before unlocking the gates.\n\nThe system keeps logs cleaner than a security guard’s clipboard and faster than an intercom buzz.\n\nBecause at MLCC, even weekend heroes need proper clearance — security, but make it stylish. 🔐",
+    "A2":"https://nlcc-apps.github.io/img/access.jpg"
+  }
+]
+  </script>
+
+  <script>
+  (function(){
+    const cfg = JSON.parse(document.getElementById('medserve-config').textContent || '[]');
+    const track = document.getElementById('track');
+    const viewport = document.getElementById('viewport');
+    const playPause = document.getElementById('playPause');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+    const readerNote = document.getElementById('readerNote');
+
+    // Build sections from config
+    function createSection(it, idx){
+      const sec = document.createElement('section');
+      sec.className = 'section';
+      sec.setAttribute('data-i', idx);
+      sec.setAttribute('tabindex', '0');
+      // left: media
+      const media = document.createElement('div'); media.className = 'media';
+      const img = document.createElement('img');
+      img.src = it.A2 || '';
+      img.alt = it.A0 || ('Article ' + (idx+1));
+      img.loading = 'lazy';
+      media.appendChild(img);
+
+      // right: content
+      const content = document.createElement('div'); content.className = 'content';
+      const kicker = document.createElement('div'); kicker.className = 'kicker'; kicker.textContent = 'Feature';
+      const h = document.createElement('h3'); h.innerHTML = it.A0 || 'Untitled';
+      const excerpt = document.createElement('div'); excerpt.className = 'excerpt'; excerpt.innerHTML = (it.A1 || '').split(/\n\n/)[0] || '';
+      const meta = document.createElement('div'); meta.className = 'metaRow';
+      const readBtn = document.createElement('button'); readBtn.className = 'metaBtn'; readBtn.textContent = 'Read More';
+      readBtn.addEventListener('click', ()=> openReader(idx));
+      const shareBtn = document.createElement('button'); shareBtn.className='metaBtn'; shareBtn.textContent='Share';
+      shareBtn.addEventListener('click', ()=> navigatorShare(it));
+      meta.appendChild(readBtn); meta.appendChild(shareBtn);
+
+      content.appendChild(kicker); content.appendChild(h); content.appendChild(excerpt); content.appendChild(meta);
+
+      sec.appendChild(media); sec.appendChild(content);
+      return sec;
+    }
+
+    // create beam divider element
+    function beamDivider(){
+      const d = document.createElement('div'); d.className='beamDivider';
+      const g = document.createElement('div'); g.className='beamGlow';
+      d.appendChild(g);
+      return d;
+    }
+
+    // append sections & dividers
+    cfg.forEach((it,i)=>{
+      const s = createSection(it,i);
+      track.appendChild(s);
+      if(i < cfg.length-1) track.appendChild(beamDivider());
+    });
+
+    // IntersectionObserver to add inview class for animation triggers
+    const sections = Array.from(document.querySelectorAll('.section'));
+    const obs = new IntersectionObserver((entries)=>{
+      entries.forEach(ent=>{
+        if(ent.isIntersecting && ent.intersectionRatio > 0.4){
+          ent.target.classList.add('inview');
+          // update current index variable
+          currentIndex = parseInt(ent.target.getAttribute('data-i'));
+        } else {
+          ent.target.classList.remove('inview');
+        }
+      });
+    }, {threshold:[0.12,0.4,0.7]});
+    sections.forEach(s=>obs.observe(s));
+
+    // auto-play scrolling logic
+    let autoPlay = true;
+    let currentIndex = 0;
+    let timer = null;
+    const DURATION = 4200; // ms per step
+
+    function scrollToIndex(i){
+      const idx = Math.max(0, Math.min(cfg.length-1, i));
+      currentIndex = idx;
+      // compute target element
+      const target = document.querySelector('.section[data-i="'+idx+'"]');
+      if(!target) return;
+      // calculate target top relative to viewport scroller
+      const scrollerRect = document.getElementById('scroller').getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      // compute offset so target is vertically centered
+      const offset = targetRect.top - scrollerRect.top - (scrollerRect.height/2 - targetRect.height/2);
+      document.getElementById('scroller').scrollBy({ top: offset, left:0, behavior: 'smooth' });
+    }
+
+    function next(){ scrollToIndex(currentIndex + 1); }
+    function prev(){ scrollToIndex(currentIndex - 1); }
+
+    function startAuto(){
+      stopAuto();
+      timer = setInterval(()=>{
+        if(!autoPlay) return;
+        // advance; wrap around
+        const nxt = (currentIndex + 1) % cfg.length;
+        scrollToIndex(nxt);
+      }, DURATION);
+    }
+    function stopAuto(){ if(timer) { clearInterval(timer); timer = null; } }
+
+    // Pause on hover & focus
+    viewport.addEventListener('mouseenter', ()=> { autoPlay = false; playPause.innerText = 'Resume'; playPause.setAttribute('aria-pressed','true'); readerNote.textContent='Auto-play PAUSED (hover)'; });
+    viewport.addEventListener('mouseleave', ()=> { autoPlay = true; playPause.innerText = 'Pause'; playPause.setAttribute('aria-pressed','false'); readerNote.textContent='Auto-play is ON — hover to pause'; });
+
+    // Play/pause control
+    playPause.addEventListener('click', ()=>{
+      const pressed = playPause.getAttribute('aria-pressed') === 'true';
+      if(pressed){
+        // currently paused -> resume
+        autoPlay = true; playPause.setAttribute('aria-pressed','false'); playPause.innerText = 'Pause'; readerNote.textContent='Auto-play is ON — hover to pause';
+      } else {
+        autoPlay = false; playPause.setAttribute('aria-pressed','true'); playPause.innerText = 'Resume'; readerNote.textContent='Auto-play PAUSED (manual)';
+      }
+    });
+
+    // next/prev controls
+    nextBtn.addEventListener('click', ()=> { autoPlay = false; playPause.setAttribute('aria-pressed','true'); playPause.innerText='Resume'; next(); });
+    prevBtn.addEventListener('click', ()=> { autoPlay = false; playPause.setAttribute('aria-pressed','true'); playPause.innerText='Resume'; prev(); });
+
+    // keyboard nav
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === 'ArrowRight') { autoPlay = false; next(); playPause.innerText='Resume'; playPause.setAttribute('aria-pressed','true'); }
+      if(e.key === 'ArrowLeft') { autoPlay = false; prev(); playPause.innerText='Resume'; playPause.setAttribute('aria-pressed','true'); }
+      if(e.key === ' '){ // space toggles pause/resume
+        e.preventDefault();
+        const pressed = playPause.getAttribute('aria-pressed') === 'true';
+        if(pressed){ autoPlay = true; playPause.setAttribute('aria-pressed','false'); playPause.innerText='Pause'; } else { autoPlay = false; playPause.setAttribute('aria-pressed','true'); playPause.innerText='Resume'; }
+      }
+    });
+
+    // Open reader (modal) for full article
+    function openReader(i){
+      const data = cfg[i];
+      if(!data) return;
+      // create modal overlay if not present
+      let modal = document.getElementById('readerModal');
+      if(!modal){
+        modal = document.createElement('div');
+        modal.id = 'readerModal';
+        modal.style.position = 'fixed';
+        modal.style.inset = '0';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.background = 'linear-gradient(180deg, rgba(7,23,36,0.35), rgba(7,23,36,0.55))';
+        modal.style.zIndex = 2000;
+        modal.innerHTML = `
+          <div role="dialog" aria-modal="true" aria-label="Article reader" style="width:min(1100px,96%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:28px;border:1px solid rgba(11,102,178,0.06);box-shadow:0 40px 140px rgba(2,8,23,0.36)">
+            <button id="readerClose" style="position:absolute;right:26px;top:26px;border:none;background:transparent;font-size:22px;cursor:pointer;color:#0f3943;font-weight:800">×</button>
+            <div style="display:flex;gap:22px;align-items:flex-start">
+              <div style="flex:1">
+                <h2 id="readerTitle" style="margin:0 0 8px;font-size:22px;color:#052b35"></h2>
+                <div id="readerLead" style="color:var(--muted);margin-bottom:12px"></div>
+                <div id="readerBody" style="color:#163c40;line-height:1.7"></div>
+              </div>
+              <aside style="width:320px">
+                <div style="width:100%;height:200px;border-radius:10px;overflow:hidden;border:1px solid rgba(11,102,178,0.06);margin-bottom:12px"><img id="readerImg" src="" style="width:100%;height:100%;object-fit:cover"></div>
+                <div id="readerExtras" style="color:var(--muted);font-weight:700"></div>
+              </aside>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('readerClose').addEventListener('click', ()=> closeReader());
+        modal.addEventListener('click', (ev)=> { if(ev.target === modal) closeReader(); });
+      }
+      // fill content
+      document.getElementById('readerTitle').textContent = data.A0 || '';
+      document.getElementById('readerLead').textContent = (data.A0 || '').split('—')[1] || '';
+      document.getElementById('readerBody').innerHTML = (data.A1 || '').replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>');
+      document.getElementById('readerImg').src = data.A2 || '';
+      document.getElementById('readerExtras').textContent = 'Source: MLCC IT Newsletter';
+      // show
+      modal.style.display = 'flex';
+      // pause autoplay while reading
+      autoPlay = false; playPause.innerText='Resume'; playPause.setAttribute('aria-pressed','true');
+    }
+    function closeReader(){
+      const modal = document.getElementById('readerModal');
+      if(modal) modal.style.display = 'none';
+    }
+
+    // share via Web Share API if available
+    function navigatorShare(it){
+      if(navigator.share){
+        navigator.share({ title: it.A0, text: (it.A1 || '').slice(0,120), url: location.href }).catch(()=>{});
+      } else {
+        alert('Share not supported — copy the title: ' + (it.A0 || ''));
+      }
+    }
+
+    // start autoplay loop
+    startAuto();
+
+    // ensure first section is observed and set visible state
+    setTimeout(()=> {
+      const first = document.querySelector('.section[data-i="0"]');
+      if(first) first.classList.add('inview');
+    }, 120);
+
+    // expose next/prev for HTML buttons
+    window.scrollToIndex = scrollToIndex;
+
+  })();
+  </script>
+</body>
+</html>
